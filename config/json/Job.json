@@ -1,1 +1,1 @@
-{"4":{"primaryKey":"4","action":2,"cron":"0 34 0,15 0 0 6 ","target":["1212","23232"]}}
+{"4":{"primaryKey":"4","action":"2","cron":"0 34 0,15 0 0 6","target":[{"memory_size_MiB":4096.0,"vm":"vm-2061","name":"VM-DC01","power_state":"POWERED_ON","cpu_count":4.0},{"memory_size_MiB":4096.0,"vm":"vm-2063","name":"NVIDIA-LS-100.56","power_state":"POWERED_ON","cpu_count":2.0}]}}
