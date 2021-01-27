@@ -3,6 +3,7 @@ package com.lrg.spring.vcenter.task;
 import com.lrg.spring.vcenter.context.Context;
 import com.lrg.spring.vcenter.inter.ScanExecutable;
 import com.lrg.spring.vcenter.utils.FileUtils;
+import com.lrg.spring.vcenter.utils.SpringContextUtils;
 import org.quartz.Job;
 import org.quartz.JobExecutionContext;
 import org.quartz.JobExecutionException;
@@ -50,7 +51,8 @@ public class MaintenanceJob implements Job {
         }
     }
     private void vcenterJob(JobExecutionContext jobExecutionContext){
-        List<ScanExecutable> list = Context.scanExecutables;
+        Context context= (Context) SpringContextUtils.getBean(Context.class);
+        List<ScanExecutable> list = context.getScanExecutables();
         for(ScanExecutable scanExecutable : list){
             try{
                 scanExecutable.execute(jobExecutionContext);

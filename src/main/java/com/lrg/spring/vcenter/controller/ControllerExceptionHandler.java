@@ -19,7 +19,7 @@ import javax.servlet.http.HttpServletRequest;
 public class ControllerExceptionHandler {
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
-    @ExceptionHandler(Exception.class)
+    @ExceptionHandler(Throwable.class)
     public Object handleException(Exception e, HttpServletRequest req){
         ResultEntity r = new ResultEntity();
 

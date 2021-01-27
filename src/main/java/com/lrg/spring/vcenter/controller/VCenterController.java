@@ -76,7 +76,7 @@ public class VCenterController {
     }
 
     @GetMapping("/list")
-    public ResultEntity list(){
+    public ResultEntity VMlist(){
         return new ResultEntity(500);
     }
 }

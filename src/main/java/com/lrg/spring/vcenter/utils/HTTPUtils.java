@@ -4,16 +4,42 @@ import org.apache.http.Header;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
 public class HTTPUtils {
+//    private static Map<String, CloseableHttpClient> clientMap = new HashMap<>();
+
+    // 1.使用get方式发送报文
+    public static CloseableHttpResponse doGet(Map<String,String> headerMap,String domain, String url) {
+        CloseableHttpClient client = HttpClients.createDefault();
+        HttpGet get = new HttpGet(url);
+        if(headerMap != null){
+            Set<String> keys = headerMap.keySet();
+            for (String string : keys) {
+                get.addHeader(string, headerMap.get(string).toString());
+            }
+        }
+        try {
+            CloseableHttpResponse response = client.execute(get);
+            int statusCode = response.getStatusLine().getStatusCode();
+            // LogUtil.debug(statusCode);
+            if (statusCode == 200) {
+                return response;
+            }
+            return null;
+        } catch (IOException e) {
+            return null;
+        }
+    }
     // 使用POST方法发送FORM表单数据
     public static CloseableHttpResponse post(Map<String, String> headerMap, String domain, String url,
                                                String requsestData) throws ClientProtocolException, IOException {

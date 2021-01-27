@@ -1,11 +1,7 @@
 package com.lrg.spring.vcenter.context;
 
 public class Constant {
-    public static final String SESSION_URL = "/rest/com/vmware/cis/session";
-    public static final String SESSION_PARAM = "vmware-api-session-id";
-    public static final String LIST_URL = "/rest/vcenter/vm";
-    public static final String CLOSE_URL = "/rest/vcenter/vm/$targetId$/power/stop";
-    public static final String START_URL = "/rest/vcenter/vm/$targetId$/power/start?";
+    public static final String DEFAULTCHARSET = "UTF-8";
     public static final String USERNAME = "";
     public static final String PASSWORD = "";//Basic YXBwbGVAdnNwaGVyZS5sb2NhbDpWTXdhcmUxIQ==
 

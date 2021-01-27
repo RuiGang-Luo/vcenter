@@ -5,12 +5,13 @@ import com.google.gson.Gson;
 import java.io.*;
 
 public class FileUtils {
+    private static final String DEFAULTCHARSET = "UTF-8";
     //读取json文件
     public static String readJsonFile(String fileName) throws IOException {
         String jsonStr = "";
             File jsonFile = new File(fileName);
             FileReader fileReader = new FileReader(jsonFile);
-            Reader reader = new InputStreamReader(new FileInputStream(jsonFile),"utf-8");
+            Reader reader = new InputStreamReader(new FileInputStream(jsonFile),DEFAULTCHARSET);
             int ch = 0;
             StringBuffer sb = new StringBuffer();
             while ((ch = reader.read()) != -1) {
@@ -25,7 +26,7 @@ public class FileUtils {
     public static void JsonWrite(String fileName,Object object) throws IOException{
         OutputStreamWriter osw = null;
         try {
-            osw = new OutputStreamWriter(new FileOutputStream(fileName), "UTF-8");
+            osw = new OutputStreamWriter(new FileOutputStream(fileName), DEFAULTCHARSET);
             Gson gson = new Gson();//创建JSONObject对象
             String data = gson.toJson(object);
             System.out.println(data);
