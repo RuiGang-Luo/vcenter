@@ -1,7 +1,12 @@
 package com.lrg.spring.vcenter.context;
 
 import com.google.gson.Gson;
+import com.lrg.spring.vcenter.task.MaintenanceJob;
 import com.lrg.spring.vcenter.utils.FileUtils;
+import com.lrg.spring.vcenter.utils.PathUtils;
+import org.quartz.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -12,11 +17,13 @@ import java.util.*;
  * 数据缓存
  */
 public class DataCache {
+    private static String root = PathUtils.getClasspath()+File.separator+"config"+File.separator+"json";
     private static Map<String,Map> cache = new LinkedHashMap();
+    private static final Logger logger = LoggerFactory.getLogger(DataCache.class);
     static {
         //加载Job.json
         //加载的时候需要获取config目录，然后迭代文件加载，最后以文件名作为key将数据缓存在map中，
-        File directory = new File(System.getProperty("user.dir")+File.separator+"config");
+        File directory = new File(root);
         if(!directory.exists()){
             directory.mkdirs();
         } else {
@@ -26,7 +33,7 @@ public class DataCache {
                 try {
                     jsonStr = FileUtils.readJsonFile(files[index].getAbsolutePath());
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    logger.error(e.getMessage(),e);
                 }
                 Gson gson = new Gson();
                 if(jsonStr == null || "".equals(jsonStr)){
@@ -37,7 +44,18 @@ public class DataCache {
             }
 
         }
-
+        try    {
+            SchedulerFactory schedFact  =   new  org.quartz.impl.StdSchedulerFactory();
+            Scheduler sched  =  schedFact.getScheduler();
+            JobDetail jobDetail  =   JobBuilder.newJob(MaintenanceJob.class).withIdentity("dataFlush").build();
+            jobDetail.getJobDataMap().put("rootPath",root);
+            jobDetail.getJobDataMap().put("data",cache);
+            CronScheduleBuilder trigger  =  CronScheduleBuilder.cronSchedule("0 * * * * ?");
+            sched.scheduleJob(jobDetail, TriggerBuilder.newTrigger().withIdentity("minute").startNow().withSchedule(trigger).build());
+            sched.start();
+        }   catch  (Exception e)   {
+            logger.error(e.getMessage(),e);
+        }
 
     }
     //以下方法注意线程安全性
@@ -75,6 +93,7 @@ public class DataCache {
             temp = cache.get(dataClass);
             if(temp == null){
                 temp = new HashMap();
+                cache.put(dataClass,temp);
             }
         }
         synchronized (temp){
@@ -101,6 +120,7 @@ public class DataCache {
             temp = cache.get(dataClass);
             if(temp == null){
                 temp = new HashMap();
+                cache.put(dataClass,temp);
             }
         }
         synchronized (temp){
@@ -108,4 +128,6 @@ public class DataCache {
         }
         return true;
     }
+
+
 }

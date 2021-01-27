@@ -1,5 +1,7 @@
 package com.lrg.spring.vcenter.utils;
 
+import com.google.gson.Gson;
+
 import java.io.*;
 
 public class FileUtils {
@@ -18,5 +20,20 @@ public class FileUtils {
             reader.close();
             jsonStr = sb.toString();
             return jsonStr;
+    }
+    //写入json文件
+    public static void JsonWrite(String fileName,Object object) throws IOException{
+        OutputStreamWriter osw = null;
+        try {
+            osw = new OutputStreamWriter(new FileOutputStream(fileName), "UTF-8");
+            Gson gson = new Gson();//创建JSONObject对象
+            String data = gson.toJson(object);
+            System.out.println(data);
+            osw.write(data);
+            osw.flush();//清空缓冲区，强制输出数据
+        }finally {
+            if(osw != null)
+            osw.close();//关闭输出流
+        }
     }
 }
