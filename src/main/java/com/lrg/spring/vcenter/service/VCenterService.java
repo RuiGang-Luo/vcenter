@@ -7,6 +7,7 @@ import com.lrg.spring.vcenter.context.DataCache;
 import com.lrg.spring.vcenter.context.ExecutorServicePool;
 import com.lrg.spring.vcenter.inter.ScanExecutable;
 import com.lrg.spring.vcenter.task.MaintenanceJob;
+import com.lrg.spring.vcenter.utils.CronUtils;
 import com.lrg.spring.vcenter.utils.HTTPUtils;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.util.EntityUtils;
@@ -18,6 +19,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.*;
 
 @Service
@@ -28,7 +30,7 @@ public class VCenterService implements ScanExecutable {
     private static final String LIST_URL = "/rest/vcenter/vm";
     private static final String CLOSE_URL = "/rest/vcenter/vm/$vmId$/power/stop";
     private static final String START_URL = "/rest/vcenter/vm/$vmId$/power/start";
-
+    private final Logger logger = LoggerFactory.getLogger(VCenterService.class);
     @Autowired
     private  Context context;
     @Override
@@ -38,10 +40,20 @@ public class VCenterService implements ScanExecutable {
             List<Map<String,String>> target = (List) map.get("target");
             for(Map temp:target){
                 Object vmId = temp.get("vm");
+                Object cron = temp.get("cron");
                 if(vmId == null || vmId.equals("")){
                     throw new UnknownError("here is no 'vmId' for this Job["+map.get("primaryKey")+"]");
                 }
-                ExecutorServicePool.execute(new CallVCenter(map.get("action").toString(),vmId.toString()));
+                if(cron == null || cron.equals("")){
+                    throw new UnknownError("here is no 'cron' for this Job["+map.get("primaryKey")+"]");
+                }
+                try {
+                    if(CronUtils.filterWithCronTime(cron.toString(),new Date())){
+                        ExecutorServicePool.execute(new CallVCenter(map.get("action").toString(),vmId.toString()));
+                    }
+                } catch (ParseException e) {
+                    logger.error(e.getMessage(),e);
+                }
             }
 
         }

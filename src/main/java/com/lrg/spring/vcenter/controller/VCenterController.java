@@ -68,49 +68,41 @@ public class VCenterController {
     }
 
     @PostMapping("/power/start")
-    public ResultEntity start(@RequestBody Map data) throws IOException {
+    public ResultEntity start(@RequestBody List<Map> data) throws IOException {
         return startOrStop(data,true);
     }
 
     @PostMapping("/power/stop")
-    public ResultEntity stop(@RequestBody Map data) throws IOException {
+    public ResultEntity stop(@RequestBody List<Map> data) throws IOException {
         return startOrStop(data,false);
     }
 
-    private ResultEntity startOrStop(Map data,boolean isStart) throws IOException {
-        Object target = data.get("target");
-        if(target == null ){
-            throw new UnknownError("The target is null");
-        }
-        if(target instanceof List){
-            for (Object obj : (List)target){
-                if(obj!=null ){
-                    //完整数据格式
-                    if(obj instanceof Map){
-                        Object vmId = ((Map) obj).get("vm");
-                        if(vmId != null){
-                            if(vmId instanceof String){
-                                if(isStart){
-                                    vCenterService.start((String) vmId);
-                                    return new ResultEntity(200);
-                                }else {
-                                    vCenterService.stop((String) vmId);
-                                    return new ResultEntity(200);
-                                }
-
+    private ResultEntity startOrStop(List target,boolean isStart) throws IOException {
+        for (Object obj : (List)target){
+            if(obj!=null ){
+                //完整数据格式
+                if(obj instanceof Map){
+                    Object vmId = ((Map) obj).get("vm");
+                    if(vmId != null){
+                        if(vmId instanceof String){
+                            if(isStart){
+                                //vCenterService.start((String) vmId);
+                                return new ResultEntity(200);
+                            }else {
+                                //vCenterService.stop((String) vmId);
+                                return new ResultEntity(200);
                             }
+
                         }
-                        //target只传字符串数组
-                    } else if(obj instanceof String){
-                        vCenterService.start((String) obj);
-                        return new ResultEntity(200);
                     }
+                    //target只传字符串数组
+                } else if(obj instanceof String){
+                    // vCenterService.start((String) obj);
+                    return new ResultEntity(200);
                 }
             }
-            throw new UnknownError("The target is error :"+new Gson().toJson(target));
-        } else {
-            throw new UnknownError("The target is not a instance of 'List'");
         }
+        throw new UnknownError("The target is error :"+new Gson().toJson(target));
     }
 
     @GetMapping("/list")

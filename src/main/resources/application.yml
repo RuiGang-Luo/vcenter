@@ -2,4 +2,4 @@
 logging:
   config: classpath:/config/logback.xml
 server:
-  port: 20000
+  port: 27001
