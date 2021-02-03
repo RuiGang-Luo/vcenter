@@ -18,6 +18,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
+import java.security.KeyManagementException;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -29,13 +32,15 @@ import java.util.concurrent.ExecutorService;
 @RestController
 @RequestMapping("/vcenter")
 public class VCenterController {
+    private static final String DATA_CLASS="VM.json";
 
     @Autowired
     private VCenterService vCenterService;
 
     @PostMapping("/job/insert")
-    public ResultEntity insert(@RequestBody Map data){
+    public ResultEntity insert(@RequestBody Map<String,Object> data) throws Throwable {
         if(DataCache.insertData(vCenterService.getDataClass(),data.get("primaryKey").toString(),data)){
+            vCenterService.init();
             return new ResultEntity(200);
         } else {
             return new ResultEntity(500);
@@ -43,8 +48,9 @@ public class VCenterController {
     }
 
     @PostMapping("/job/update")
-    public ResultEntity update(@RequestBody Map data){
+    public ResultEntity update(@RequestBody Map data) throws Throwable {
         if(DataCache.updateData(vCenterService.getDataClass(),data.get("primaryKey").toString(),data)){
+            vCenterService.init();
             return new ResultEntity(200);
         } else {
             return new ResultEntity(500);
@@ -52,8 +58,10 @@ public class VCenterController {
     }
 
     @DeleteMapping("/job/delete/{primaryKey}")
-    public ResultEntity delete(@PathVariable("primaryKey") String primaryKey){
-        DataCache.deleteData(vCenterService.getDataClass(),primaryKey);
+    public ResultEntity delete(@PathVariable("primaryKey") String primaryKey) throws Throwable {
+        Map<String,Object> temp = DataCache.deleteData(vCenterService.getDataClass(),primaryKey);
+//        DataCache.deleteData(vCenterService.getCacheClass(),temp.get("t"));
+        vCenterService.init();
         return new ResultEntity(200);
     }
 
@@ -68,29 +76,34 @@ public class VCenterController {
     }
 
     @PostMapping("/power/start")
-    public ResultEntity start(@RequestBody List<Map> data) throws IOException {
+    public ResultEntity start(@RequestBody List<Map> data) throws IOException, NoSuchAlgorithmException, KeyManagementException, KeyStoreException {
         return startOrStop(data,true);
     }
 
     @PostMapping("/power/stop")
-    public ResultEntity stop(@RequestBody List<Map> data) throws IOException {
+    public ResultEntity stop(@RequestBody List<Map> data) throws IOException, NoSuchAlgorithmException, KeyManagementException, KeyStoreException {
         return startOrStop(data,false);
     }
 
-    private ResultEntity startOrStop(List target,boolean isStart) throws IOException {
+    private ResultEntity startOrStop(List target,boolean isStart) throws IOException, KeyManagementException, NoSuchAlgorithmException, KeyStoreException {
         for (Object obj : (List)target){
             if(obj!=null ){
                 //完整数据格式
                 if(obj instanceof Map){
                     Object vmId = ((Map) obj).get("vm");
+
                     if(vmId != null){
                         if(vmId instanceof String){
                             if(isStart){
-                                //vCenterService.start((String) vmId);
-                                return new ResultEntity(200);
+                                if(((Map) obj).get("power_state").equals("POWERED_OFF")){
+                                    vCenterService.start((String) vmId);
+                                    continue;
+                                }
                             }else {
-                                //vCenterService.stop((String) vmId);
-                                return new ResultEntity(200);
+                                if(((Map) obj).get("power_state").equals("POWERED_ON")){
+                                    vCenterService.stop((String) vmId);
+                                    continue;
+                                }
                             }
 
                         }
@@ -102,11 +115,21 @@ public class VCenterController {
                 }
             }
         }
-        throw new UnknownError("The target is error :"+new Gson().toJson(target));
+        return new ResultEntity(200);
+//        throw new UnknownError("The target is error :"+new Gson().toJson(target));
     }
 
     @GetMapping("/list")
-    public ResultEntity VMlist() throws IOException {
-        return new ResultEntity(200,null,vCenterService.list());
+    public ResultEntity VMlist() throws IOException, KeyManagementException, NoSuchAlgorithmException, KeyStoreException {
+//        List<Map<String,Object>> temp = new Gson().fromJson(Constant.VM_LIST_STR,List.class);
+        List<Map<String,Object>> temp = vCenterService.list();
+        for(Map<String,Object> map : temp){
+            String vmId = map.get("vm").toString();
+            Map obj = (Map) DataCache.getData(vCenterService.getCacheClass(),vmId);
+            if(obj !=null && obj.size()>0){
+                map.put("jobInfo",obj);
+            }
+        }
+        return new ResultEntity(200,null,temp);
     }
 }

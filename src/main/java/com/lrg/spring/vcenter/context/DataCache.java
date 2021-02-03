@@ -19,6 +19,7 @@ import java.util.*;
 public class DataCache {
     private static String root = PathUtils.getClasspath()+File.separator+"config"+File.separator+"json";
     private static Map<String,Map> cache = new LinkedHashMap();
+    private static Map<String,Map> vmCache = new LinkedHashMap();
     private static final Logger logger = LoggerFactory.getLogger(DataCache.class);
     static {
         //加载Job.json
@@ -40,6 +41,7 @@ public class DataCache {
                     continue;
                 }
                 Map data = gson.fromJson(jsonStr,Map.class);
+
                 cache.put(files[index].getName(),data);
             }
 
@@ -63,13 +65,15 @@ public class DataCache {
     public static Map getData(String dataClass,String primaryKey){
         Map temp = cache.get(dataClass);
         if(temp == null){
-            return new HashMap();
+            return null;
         }
         Object data = null;
         synchronized (temp){
             data = temp.get(primaryKey);
             if( data == null ){
-                return new HashMap();
+                Map map = new HashMap();
+                temp.put(primaryKey,map);
+                return map;
             }
         }
         return (Map)data;
@@ -112,6 +116,14 @@ public class DataCache {
             result =(Map) temp.remove(primaryKey);
         }
         return result;
+    }
+    //数据删除
+    public static void deleteClass(String dataClass){
+        Map temp = cache.get(dataClass);
+        if(temp == null){
+            return;
+        }
+        cache.remove(dataClass);
     }
     //数据更新
     public static boolean updateData(String dataClass,String primaryKey,Map data){
