@@ -25,6 +25,7 @@ import java.security.KeyManagementException;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 @Service
@@ -32,7 +33,8 @@ public class VCenterService implements ScanExecutable, Initializable {
     private static final String DATA_CLASS="Job.json";
     private static final String CACHE_CLASS="VM.json";
     private static final String SESSION_URL = "/rest/com/vmware/cis/session";
-    private static final String SESSION_PARAM = "vmware-api-session-id";
+    private static String SESSION_ID = "vmware-api-session-id";
+    private static Date expiration = null;
     private static final String LIST_URL = "/rest/vcenter/vm";
     private static final String CLOSE_URL = "/rest/vcenter/vm/$vmId$/power/stop";
     private static final String START_URL = "/rest/vcenter/vm/$vmId$/power/start";
@@ -41,28 +43,64 @@ public class VCenterService implements ScanExecutable, Initializable {
     private  Context context;
     @Override
     public void execute(JobExecutionContext jobExecutionContext) throws JobExecutionException {
-        List<Map> list = DataCache.getDataList(DATA_CLASS);
-        for(Map map :list){
-            List<Map<String,String>> target = (List) map.get("target");
-            for(Map temp:target){
+        List<Map> list = DataCache.getDataList("Job.json");
+        Iterator var3 = list.iterator();
+
+        while(var3.hasNext()) {
+            Map map = (Map)var3.next();
+            List<Map<String, String>> target = (List)map.get("target");
+            Iterator var6 = target.iterator();
+
+            while(var6.hasNext()) {
+                Map temp = (Map)var6.next();
                 Object vmId = temp.get("vm");
                 Object cron = map.get("cron");
-                if(vmId == null || vmId.equals("")){
-                    throw new UnknownError("here is no 'vmId' for this Job["+map.get("primaryKey")+"]");
-                }
-                if(cron == null || cron.equals("")){
-                    throw new UnknownError("here is no 'cron' for this Job["+map.get("primaryKey")+"]");
-                }
-                try {
-                    if(CronUtils.filterWithCronTime(cron.toString(),new Date())){
-                        ExecutorServicePool.execute(new CallVCenter(map.get("action").toString(),vmId.toString()));
-                    }
-                } catch (ParseException e) {
-                    logger.error(e.getMessage(),e);
-                }
-            }
+                Object startDate = temp.get("startDate");
+                Object endDate = temp.get("endDate");
+                Object endJobTime = temp.get("endJobTime");
+                Object jobTime = temp.get("jobTime");
+                if (vmId != null && !vmId.equals("")) {
+                    if (cron != null && !cron.equals("")) {
+                        try {
+                            if (!CronUtils.filterWithCronTime(cron.toString(), new Date())) {
+                                continue;
+                            }
 
+                            SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd h:m");
+                            String end;
+                            if (startDate != null) {
+                                end = startDate.toString() + " " + jobTime.toString();
+                                if (simpleDateFormat.parse(end).after(new Date(System.currentTimeMillis()))) {
+                                    return;
+                                }
+                            }
+
+                            if (endDate != null) {
+                                end = endDate.toString();
+                                if (endJobTime != null && !endJobTime.equals("")) {
+                                    end = end + " " + endJobTime.toString();
+                                } else {
+                                    end = end + " 0:0";
+                                }
+
+                                if (simpleDateFormat.parse(end).before(new Date(System.currentTimeMillis()))) {
+                                    return;
+                                }
+                            }
+                            ExecutorServicePool.execute(new VCenterService.CallVCenter(map.get("action").toString(), vmId.toString()));
+                        } catch (ParseException  var16) {
+                            this.logger.error(var16.getMessage(), var16);
+                        }
+                        continue;
+                    }
+
+                    throw new UnknownError("here is no 'cron' for this Job[" + map.get("primaryKey") + "]");
+                }
+
+                throw new UnknownError("here is no 'vmId' for this Job[" + map.get("primaryKey") + "]");
+            }
         }
+
     }
 
     public boolean start(String vmId) throws IOException, NoSuchAlgorithmException, KeyManagementException, KeyStoreException {
@@ -97,13 +135,16 @@ public class VCenterService implements ScanExecutable, Initializable {
     }
 
     private String session() throws IOException, KeyManagementException, NoSuchAlgorithmException, KeyStoreException {
-        CloseableHttpResponse response = getResponse(SESSION_URL,null,true);
-        Object value = getValue(response);
-        if(value != null && value instanceof String && !value.equals("")){
-            return  value.toString();
-        } else {
-            throw new UnknownError("the session['value'] is :"+new Gson().toJson(value));
+        if(expiration == null || expiration.before(new Date(System.currentTimeMillis()-(1000*60*10)))){
+            CloseableHttpResponse response = getResponse(SESSION_URL,null,true);
+            Object value = getValue(response);
+            if(value != null && value instanceof String && !value.equals("")){
+                SESSION_ID = value.toString();
+            } else {
+                throw new UnknownError("the session['value'] is :"+new Gson().toJson(value));
+            }
         }
+        return SESSION_ID;
     }
 
     private Object getValue(CloseableHttpResponse response ) throws IOException {
@@ -177,6 +218,9 @@ public class VCenterService implements ScanExecutable, Initializable {
         DataCache.deleteClass(this.getCacheClass());
         List<Map> list = DataCache.getDataList(this.getDataClass());
         for(Map<String,Object> map : list){
+            Gson gson = new Gson();
+            Map temp = gson.fromJson(gson.toJson(map),Map.class);
+            temp.remove("target");
             List<Map<String,String>> vmList = (List<Map<String, String>>) map.get("target");
             for(Map<String,String> vmInfo : vmList){
                 String vmId = vmInfo.get("vm");
@@ -184,7 +228,8 @@ public class VCenterService implements ScanExecutable, Initializable {
                 if(map1 == null){
                     map1 = new HashMap();
                 }
-                map1.put(map.get("primaryKey").toString(),map);
+
+                map1.put(map.get("primaryKey").toString(),temp);
                 DataCache.insertData(this.getCacheClass(),vmId,map1);
             }
         }

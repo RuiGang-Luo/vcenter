@@ -53,7 +53,7 @@ public class HTTPUtils {
         HttpGet get = new HttpGet(domain+url);
         RequestConfig config = RequestConfig.custom().setConnectTimeout(1000) //连接超时时间
                 .setConnectionRequestTimeout(1000) //从连接池中取的连接的最长时间
-                .setSocketTimeout(10 *1000) //数据传输的超时时间
+                .setSocketTimeout(300 *1000) //数据传输的超时时间
                 .build();
         get.setConfig(config);
         if(headerMap != null){
@@ -80,7 +80,7 @@ public class HTTPUtils {
         }
         RequestConfig config = RequestConfig.custom().setConnectTimeout(1000) //连接超时时间
                 .setConnectionRequestTimeout(1000) //从连接池中取的连接的最长时间
-                .setSocketTimeout(10 *1000) //数据传输的超时时间
+                .setSocketTimeout(300 *1000) //数据传输的超时时间
                 .build();
         post.setConfig(config);
         //将报文信息设置到请求体中

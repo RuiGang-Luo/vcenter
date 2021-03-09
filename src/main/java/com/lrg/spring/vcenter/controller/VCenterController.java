@@ -76,16 +76,16 @@ public class VCenterController {
     }
 
     @PostMapping("/power/start")
-    public ResultEntity start(@RequestBody List<Map> data) throws IOException, NoSuchAlgorithmException, KeyManagementException, KeyStoreException {
+    public ResultEntity start(@RequestBody List<Map> data) throws IOException, NoSuchAlgorithmException, KeyManagementException, KeyStoreException, InterruptedException {
         return startOrStop(data,true);
     }
 
     @PostMapping("/power/stop")
-    public ResultEntity stop(@RequestBody List<Map> data) throws IOException, NoSuchAlgorithmException, KeyManagementException, KeyStoreException {
+    public ResultEntity stop(@RequestBody List<Map> data) throws IOException, NoSuchAlgorithmException, KeyManagementException, KeyStoreException, InterruptedException {
         return startOrStop(data,false);
     }
 
-    private ResultEntity startOrStop(List target,boolean isStart) throws IOException, KeyManagementException, NoSuchAlgorithmException, KeyStoreException {
+    private ResultEntity startOrStop(List target,boolean isStart) throws IOException, KeyManagementException, NoSuchAlgorithmException, KeyStoreException, InterruptedException {
         for (Object obj : (List)target){
             if(obj!=null ){
                 //完整数据格式
@@ -97,11 +97,13 @@ public class VCenterController {
                             if(isStart){
                                 if(((Map) obj).get("power_state").equals("POWERED_OFF")){
                                     vCenterService.start((String) vmId);
+//                                    Thread.sleep(1000);
                                     continue;
                                 }
                             }else {
                                 if(((Map) obj).get("power_state").equals("POWERED_ON")){
                                     vCenterService.stop((String) vmId);
+//                                    Thread.sleep(1000);
                                     continue;
                                 }
                             }
