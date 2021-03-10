@@ -18,7 +18,6 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.TrustStrategy;
-import org.omg.CORBA.UNKNOWN;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
@@ -30,10 +29,8 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.UnknownFormatConversionException;
 
 public class HTTPUtils {
 //    private static Map<String, CloseableHttpClient> clientMap = new HashMap<>();
@@ -119,6 +116,7 @@ public class HTTPUtils {
         //使用 loadTrustMaterial() 方法实现一个信任策略，信任全部证书
         SSLContext sslContext = new SSLContextBuilder().loadTrustMaterial(null, new TrustStrategy() {
             // 信任全部
+            @Override
             public boolean isTrusted(X509Certificate[] chain, String authType) throws CertificateException {
                 return true;
             }
