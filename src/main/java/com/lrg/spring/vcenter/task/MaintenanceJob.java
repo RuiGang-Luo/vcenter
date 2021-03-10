@@ -1,5 +1,6 @@
 package com.lrg.spring.vcenter.task;
 
+import com.google.gson.Gson;
 import com.lrg.spring.vcenter.context.Context;
 import com.lrg.spring.vcenter.inter.ScanExecutable;
 import com.lrg.spring.vcenter.utils.FileUtils;
@@ -30,7 +31,9 @@ public class MaintenanceJob implements Job {
         if(!directory.exists()){
             directory.mkdirs();
         } else {
-            Map<String,Map> cache = (Map<String, Map>) jobExecutionContext.getMergedJobDataMap().get("data");
+            Map<String,Map> temp = (Map<String, Map>) jobExecutionContext.getMergedJobDataMap().get("data");
+            Gson gson = new Gson();
+            Map<String,Map> cache = gson.fromJson(gson.toJson(temp),Map.class);
             for(Map.Entry entry : cache.entrySet()){
                 String fileName = entry.getKey().toString();
 
@@ -45,7 +48,7 @@ public class MaintenanceJob implements Job {
                         logger.error(e.getMessage(),e);
                     }
                 }
-                logger.info("the file["+fileName+"] save complete");
+                logger.debug("the file["+fileName+"] save complete");
             }
 
         }

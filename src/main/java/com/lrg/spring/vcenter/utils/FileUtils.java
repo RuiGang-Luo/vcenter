@@ -29,7 +29,7 @@ public class FileUtils {
             osw = new OutputStreamWriter(new FileOutputStream(fileName), DEFAULTCHARSET);
             Gson gson = new Gson();//创建JSONObject对象
             String data = gson.toJson(object);
-            System.out.println(data);
+//            System.out.println(data);
             osw.write(data);
             osw.flush();//清空缓冲区，强制输出数据
         }finally {

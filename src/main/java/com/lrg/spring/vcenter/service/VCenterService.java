@@ -33,7 +33,8 @@ public class VCenterService implements ScanExecutable, Initializable {
     private static final String DATA_CLASS = "Job.json";
     private static final String CACHE_CLASS = "VM.json";
     private static final String SESSION_URL = "/rest/com/vmware/cis/session";
-    private static final String SESSION_PARAM = "vmware-api-session-id";
+    private static String SESSION_ID = "vmware-api-session-id";
+    private static Date expiration = null;
     private static final String LIST_URL = "/rest/vcenter/vm";
     private static final String CLOSE_URL = "/rest/vcenter/vm/$vmId$/power/stop";
     private static final String START_URL = "/rest/vcenter/vm/$vmId$/power/start";
@@ -122,13 +123,16 @@ public class VCenterService implements ScanExecutable, Initializable {
     }
 
     private String session() throws IOException, KeyManagementException, NoSuchAlgorithmException, KeyStoreException {
-        CloseableHttpResponse response = getResponse(SESSION_URL, null, true);
-        Object value = getValue(response);
-        if (value != null && value instanceof String && !value.equals("")) {
-            return value.toString();
-        } else {
-            throw new UnknownError("the session['value'] is :" + new Gson().toJson(value));
+        if(expiration == null || expiration.before(new Date(System.currentTimeMillis()-(1000*60*10)))){
+            CloseableHttpResponse response = getResponse(SESSION_URL,null,true);
+            Object value = getValue(response);
+            if(value != null && value instanceof String && !value.equals("")){
+                SESSION_ID = value.toString();
+            } else {
+                throw new UnknownError("the session['value'] is :"+new Gson().toJson(value));
+            }
         }
+        return SESSION_ID;
     }
 
     private Object getValue(CloseableHttpResponse response) throws IOException {
@@ -201,16 +205,20 @@ public class VCenterService implements ScanExecutable, Initializable {
     public boolean init() throws Throwable {
         DataCache.deleteClass(this.getCacheClass());
         List<Map> list = DataCache.getDataList(this.getDataClass());
-        for (Map<String, Object> map : list) {
-            List<Map<String, String>> vmList = (List<Map<String, String>>) map.get("target");
-            for (Map<String, String> vmInfo : vmList) {
+        for(Map<String,Object> map : list){
+            Gson gson = new Gson();
+            Map temp = gson.fromJson(gson.toJson(map),Map.class);
+            temp.remove("target");
+            List<Map<String,String>> vmList = (List<Map<String, String>>) map.get("target");
+            for(Map<String,String> vmInfo : vmList){
                 String vmId = vmInfo.get("vm");
-                Map map1 = DataCache.getData(this.getCacheClass(), vmId);
-                if (map1 == null) {
+                Map map1 = DataCache.getData(this.getCacheClass(),vmId);
+                if(map1 == null){
                     map1 = new HashMap();
                 }
-                map1.put(map.get("primaryKey").toString(), map);
-                DataCache.insertData(this.getCacheClass(), vmId, map1);
+
+                map1.put(map.get("primaryKey").toString(),temp);
+                DataCache.insertData(this.getCacheClass(),vmId,map1);
             }
         }
         return true;
