@@ -7,9 +7,12 @@ import com.lrg.spring.vcenter.context.DataCache;
 import com.lrg.spring.vcenter.context.ExecutorServicePool;
 import com.lrg.spring.vcenter.inter.Initializable;
 import com.lrg.spring.vcenter.inter.ScanExecutable;
+import com.lrg.spring.vcenter.pojo.ResultEntity;
 import com.lrg.spring.vcenter.task.MaintenanceJob;
 import com.lrg.spring.vcenter.utils.CronUtils;
+import com.lrg.spring.vcenter.utils.FileUtils;
 import com.lrg.spring.vcenter.utils.HTTPUtils;
+import com.lrg.spring.vcenter.utils.PathUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.util.EntityUtils;
@@ -20,7 +23,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.security.KeyManagementException;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
@@ -41,53 +47,105 @@ public class VCenterService implements ScanExecutable, Initializable {
     private final Logger logger = LoggerFactory.getLogger(VCenterService.class);
     @Autowired
     private Context context;
+    @Autowired
+    private PowerShellService powerShellService;
 
     @Override
     public void execute(JobExecutionContext jobExecutionContext) throws JobExecutionException {
         List<Map> list = DataCache.getDataList(DATA_CLASS);
         for (Map map : list) {
             List<Map<String, String>> target = (List) map.get("target");
-            for (Map temp : target) {
-                Object vmId = temp.get("vm");
-                Object cron = map.get("cron");
-                Object startDate = temp.get("startDate");
-                Object endDate = temp.get("endDate");
-                Object endJobTime = temp.get("endJobTime");
-                Object jobTime = temp.get("jobTime");
-
-                if (vmId == null || vmId.equals("")) {
-                    throw new UnknownError("here is no 'vmId' for this Job[" + map.get("primaryKey") + "]");
-                }
-                if (cron == null || cron.equals("")) {
-                    throw new UnknownError("here is no 'cron' for this Job[" + map.get("primaryKey") + "]");
-                }
-                try {
-                    if (CronUtils.filterWithCronTime(cron.toString(), new Date())) {
-                        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd h:m");
-                        if (startDate != null) {
-                            String start = startDate.toString() + " " + jobTime.toString();
-                            if (simpleDateFormat.parse(start).after(new Date(System.currentTimeMillis()))) {
-                                return;
-                            }
+            Object cron = map.get("cron");
+            if (cron == null || cron.equals("")) {
+                throw new UnknownError("here is no 'cron' for this Job[" + map.get("primaryKey") + "]");
+            }
+            try {
+                Date currentDate = new Date();
+                if (CronUtils.filterWithCronTime(cron.toString(), currentDate)) {
+                    Object startDate = map.get("startDate");
+                    Object endDate = map.get("endDate");
+                    Object endJobTime = map.get("endJobTime");
+                    Object jobTime = map.get("jobTime");
+                    SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd h:m");
+                    if (startDate != null) {
+                        String start = startDate.toString() + " " + jobTime.toString();
+                        if (simpleDateFormat.parse(start).after(currentDate)) {
+                            continue;
                         }
-                        if (endDate != null) {
-                            String end = endDate.toString();
-                            if (endJobTime != null && !endJobTime.equals("")) {
-                                end += " " + endJobTime.toString();
-                            } else {
-                                end += " " + "0:0";
-                            }
-                            if (simpleDateFormat.parse(end).before(new Date(System.currentTimeMillis()))) {
-                                return;
-                            }
+                    }
+                    if (endDate != null) {
+                        String end = endDate.toString();
+                        if (endJobTime != null && !endJobTime.equals("")) {
+                            end += " " + endJobTime.toString();
+                        } else {
+                            end += " " + "0:0";
+                        }
+                        if (simpleDateFormat.parse(end).before(currentDate)) {
+                            continue;
+                        }
+                    }
+                    logger.error(cron.toString());
+                    initModules();
+                    Object poolId = map.get("poolId");
+                    if(poolId !=null && poolId.toString().trim() !=""){
+                        Object action = map.get("action");
+                        String command = FileUtils.readJsonFile(PathUtils.getClasspath() + File.separator + "config" + File.separator + "command.ps1");
+                        String status = action.equals("1") ? "$true" : "$false";
+                        command = command.replace("$poolId$",poolId.toString())
+                                .replace("$serverIp$",context.getProperties("com.Horizon.ip"))
+                                .replace("$userName$",context.getProperties("com.Horizon.userName"))
+                                .replace("$password$",context.getProperties("com.Horizon.password"))
+                                .replace("$status$",status);
+                        logger.error(command);
+                        ResultEntity resultEntity = powerShellService.run(command);
+                        if(resultEntity.getMessage().indexOf("Exception")>0){
+                            logger.error(resultEntity.getMessage());
+                            continue;
+                        } else {
+                            logger.info(resultEntity.getMessage());
+                        }
+                    }
+
+                    for (Map temp : target) {
+                        Object vmId = temp.get("vm");
+                        logger.info(vmId.toString());
+                        if (vmId == null || vmId.equals("")) {
+                            throw new UnknownError("here is no 'vmId' for this Job[" + map.get("primaryKey") + "]");
                         }
                         ExecutorServicePool.execute(new CallVCenter(map.get("action").toString(), vmId.toString()));
                     }
-                } catch (ParseException e) {
-                    logger.error(e.getMessage(), e);
                 }
+            } catch (ParseException e) {
+                logger.error(e.getMessage(), e);
+            } catch (IOException e) {
+                logger.error(e.getMessage(), e);
+            } catch (Throwable throwable){
+                logger.error(throwable.getMessage(), throwable);
             }
+        }
+    }
 
+    public void initModules() throws IOException {
+        context = new Context();
+        File file = new File(context.getProperties("com.Horizon.ps.path") + File.separator + "Horizon.ps1");
+        if (!file.exists()) {
+            new File(context.getProperties("com.Horizon.ps.path")).mkdirs();
+            File psRoot = new File(PathUtils.getClasspath() + File.separator + "config" + File.separator + "Modules");
+            copyFile(psRoot, context.getProperties("com.Horizon.ps.path"));
+        }
+    }
+
+    private void copyFile(File file, String target) throws IOException {
+        if (file.isFile()) {
+            FileOutputStream fileOutputStream = new FileOutputStream(new File(target + File.separator + file.getName()));
+            Files.copy(file.toPath(), fileOutputStream);
+            fileOutputStream.close();
+        } else {
+            File[] root = file.listFiles();
+            for (File temp : root) {
+                new File(target + File.separator + file.getName()).mkdirs();
+                copyFile(temp, target + File.separator + file.getName());
+            }
         }
     }
 
@@ -123,13 +181,13 @@ public class VCenterService implements ScanExecutable, Initializable {
     }
 
     private String session() throws IOException, KeyManagementException, NoSuchAlgorithmException, KeyStoreException {
-        if(expiration == null || expiration.before(new Date(System.currentTimeMillis()-(1000*60*10)))){
-            CloseableHttpResponse response = getResponse(SESSION_URL,null,true);
+        if (expiration == null || expiration.before(new Date(System.currentTimeMillis() - (1000 * 60 * 10)))) {
+            CloseableHttpResponse response = getResponse(SESSION_URL, null, true);
             Object value = getValue(response);
-            if(value != null && value instanceof String && !value.equals("")){
+            if (value != null && value instanceof String && !value.equals("")) {
                 SESSION_ID = value.toString();
             } else {
-                throw new UnknownError("the session['value'] is :"+new Gson().toJson(value));
+                throw new UnknownError("the session['value'] is :" + new Gson().toJson(value));
             }
         }
         return SESSION_ID;
@@ -205,20 +263,20 @@ public class VCenterService implements ScanExecutable, Initializable {
     public boolean init() throws Throwable {
         DataCache.deleteClass(this.getCacheClass());
         List<Map> list = DataCache.getDataList(this.getDataClass());
-        for(Map<String,Object> map : list){
+        for (Map<String, Object> map : list) {
             Gson gson = new Gson();
-            Map temp = gson.fromJson(gson.toJson(map),Map.class);
+            Map temp = gson.fromJson(gson.toJson(map), Map.class);
             temp.remove("target");
-            List<Map<String,String>> vmList = (List<Map<String, String>>) map.get("target");
-            for(Map<String,String> vmInfo : vmList){
+            List<Map<String, String>> vmList = (List<Map<String, String>>) map.get("target");
+            for (Map<String, String> vmInfo : vmList) {
                 String vmId = vmInfo.get("vm");
-                Map map1 = DataCache.getData(this.getCacheClass(),vmId);
-                if(map1 == null){
+                Map map1 = DataCache.getData(this.getCacheClass(), vmId);
+                if (map1 == null) {
                     map1 = new HashMap();
                 }
 
-                map1.put(map.get("primaryKey").toString(),temp);
-                DataCache.insertData(this.getCacheClass(),vmId,map1);
+                map1.put(map.get("primaryKey").toString(), temp);
+                DataCache.insertData(this.getCacheClass(), vmId, map1);
             }
         }
         return true;
@@ -272,19 +330,26 @@ public class VCenterService implements ScanExecutable, Initializable {
 ////解码
 //        byte[] decode = Base64.getDecoder().decode(encodeToString);
 //        System.out.println(new String(decode));
-        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd h:m");
-        String endDate = "2021-03-25";
-        String endJobTime = "18:5";
-        if (endDate != null) {
-            String end = endDate.toString();
-            if (endJobTime != null && !endJobTime.equals("")) {
-                end += " " + endJobTime.toString();
-            } else {
-                end += " " + "0:0";
-            }
-            if (simpleDateFormat.parse(end).before(new Date(System.currentTimeMillis()))) {
-                return;
-            }
+//        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd h:m");
+//        String endDate = "2021-03-25";
+//        String endJobTime = "18:5";
+//        if (endDate != null) {
+//            String end = endDate.toString();
+//            if (endJobTime != null && !endJobTime.equals("")) {
+//                end += " " + endJobTime.toString();
+//            } else {
+//                end += " " + "0:0";
+//            }
+//            if (simpleDateFormat.parse(end).before(new Date(System.currentTimeMillis()))) {
+//                return;
+//            }
+//        }
+
+        VCenterService vCenterService = new VCenterService();
+        try {
+            vCenterService.initModules();
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 }
